@@ -4,6 +4,7 @@ import { DevFillDomEngine } from './filler';
 let currentSettings: DevFillSettings = { ...DEFAULT_SETTINGS };
 let engine = new DevFillDomEngine(currentSettings);
 let lastRightClickedElement: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null = null;
+let lastActionTimestamp = 0;
 
 // Track right clicked element for context menu actions
 document.addEventListener(
@@ -50,26 +51,86 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged)
   });
 }
 
+/**
+ * Executes filling all form fields with debouncing and toast
+ */
+function executeFillAll(): { filled: number; duration: number } {
+  const now = Date.now();
+  if (now - lastActionTimestamp < 350) {
+    return { filled: 0, duration: 0 };
+  }
+  lastActionTimestamp = now;
+
+  const startTime = performance.now();
+  const filled = engine.fillAll();
+  const duration = Math.round(performance.now() - startTime);
+  showFloatingToast(`⚡ DevFill: ${filled} fields filled (${duration}ms)`);
+  return { filled, duration };
+}
+
+/**
+ * Executes clearing all form fields with debouncing and toast
+ */
+function executeClearAll(): number {
+  const now = Date.now();
+  if (now - lastActionTimestamp < 350) {
+    return 0;
+  }
+  lastActionTimestamp = now;
+
+  const cleared = engine.clearAll();
+  showFloatingToast(`🧹 DevFill: Cleared ${cleared} fields`);
+  return cleared;
+}
+
+// Direct keyboard listener in capturing phase:
+// Intercepts Alt+Shift+F and Alt+Shift+C directly in the web page.
+// Calling event.preventDefault() suppresses Firefox & Windows from opening the top File Menu.
+window.addEventListener(
+  'keydown',
+  (event: KeyboardEvent) => {
+    // Fill Entire Form (Alt + Shift + F)
+    if (
+      event.altKey &&
+      event.shiftKey &&
+      (event.code === 'KeyF' || event.key === 'F' || event.key === 'f')
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      executeFillAll();
+      return;
+    }
+
+    // Clear Form (Alt + Shift + C)
+    if (
+      event.altKey &&
+      event.shiftKey &&
+      (event.code === 'KeyC' || event.key === 'C' || event.key === 'c')
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      executeClearAll();
+      return;
+    }
+  },
+  true // Use capture phase so we intercept before browser default menu accelerators
+);
+
 // Listen for messages from popup or background script
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener(
     (message: MessageType, _sender, sendResponse: (response: unknown) => void) => {
-      const startTime = performance.now();
-
       if (message.type === 'FILL_ALL') {
         if (message.settings) {
           engine.updateSettings(message.settings);
         }
-        const filled = engine.fillAll();
-        const duration = Math.round(performance.now() - startTime);
-        showFloatingToast(`⚡ DevFill: ${filled} fields filled (${duration}ms)`);
+        const { filled, duration } = executeFillAll();
         sendResponse({ success: true, filledCount: filled, durationMs: duration });
         return true;
       }
 
       if (message.type === 'CLEAR_ALL') {
-        const cleared = engine.clearAll();
-        showFloatingToast(`🧹 DevFill: Cleared ${cleared} fields`);
+        const cleared = executeClearAll();
         sendResponse({ success: true, clearedCount: cleared });
         return true;
       }

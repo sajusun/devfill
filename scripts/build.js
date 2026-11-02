@@ -2,22 +2,36 @@ import { build } from 'vite';
 import { resolve } from 'path';
 import fs from 'fs';
 
-async function runBuild() {
-  const rootDir = process.cwd();
-  const distDir = resolve(rootDir, 'dist');
+const rootDir = process.cwd();
 
-  // Step 1: Clean dist
-  if (fs.existsSync(distDir)) {
-    fs.rmSync(distDir, { recursive: true, force: true });
+// Parse target: --target=chrome (default) | --target=firefox | --target=all
+const args = process.argv.slice(2);
+const targetArg = args.find((a) => a.startsWith('--target='));
+const selectedTarget = targetArg ? targetArg.split('=')[1].toLowerCase() : 'chrome';
+
+async function buildTarget(target) {
+  const isFirefox = target === 'firefox';
+  const outDirName = isFirefox ? 'dist-firefox' : 'dist';
+  const outDir = resolve(rootDir, outDirName);
+
+  console.log(`\n======================================================`);
+  console.log(`🚀 Building DevFill for [${isFirefox ? 'FIREFOX (Gecko MV3)' : 'EDGE / CHROME (Chromium MV3)'}]`);
+  console.log(`📁 Target directory: ./${outDirName}`);
+  console.log(`======================================================\n`);
+
+  // Step 1: Clean target output directory
+  if (fs.existsSync(outDir)) {
+    fs.rmSync(outDir, { recursive: true, force: true });
   }
-  fs.mkdirSync(distDir, { recursive: true });
+  fs.mkdirSync(outDir, { recursive: true });
 
+  // Step 2: Build Popup & Options HTML
   console.log('📦 Step 1: Building Popup and Options HTML pages...');
   await build({
     configFile: false,
     base: '',
     build: {
-      outDir: 'dist',
+      outDir: outDirName,
       emptyOutDir: false,
       rollupOptions: {
         input: {
@@ -28,11 +42,12 @@ async function runBuild() {
     }
   });
 
-  console.log('⚡ Step 2: Building standalone Content Script (IIFE, self-contained)...');
+  // Step 3: Build Content Script
+  console.log('📜 Step 2: Building standalone Content Script (IIFE)...');
   await build({
     configFile: false,
     build: {
-      outDir: 'dist',
+      outDir: outDirName,
       emptyOutDir: false,
       lib: {
         entry: resolve(rootDir, 'src/content/index.ts'),
@@ -43,11 +58,12 @@ async function runBuild() {
     }
   });
 
-  console.log('⚙️ Step 3: Building standalone Background Service Worker (ES Module)...');
+  // Step 4: Build Background Script
+  console.log('⚙️ Step 3: Building standalone Background Script (ES Module)...');
   await build({
     configFile: false,
     build: {
-      outDir: 'dist',
+      outDir: outDirName,
       emptyOutDir: false,
       lib: {
         entry: resolve(rootDir, 'src/background/index.ts'),
@@ -57,20 +73,58 @@ async function runBuild() {
     }
   });
 
-  console.log('📋 Step 4: Copying Manifest and Icons...');
-  const manifest = fs.readFileSync(resolve(rootDir, 'manifest.json'), 'utf-8');
-  fs.writeFileSync(resolve(distDir, 'manifest.json'), manifest);
+  // Step 5: Manifest Transformation
+  console.log(`📋 Step 4: Configuring ${isFirefox ? 'Firefox Manifest V3' : 'Chromium Manifest V3'}...`);
+  const manifestRaw = fs.readFileSync(resolve(rootDir, 'manifest.json'), 'utf-8');
+  const manifest = JSON.parse(manifestRaw);
 
+  if (isFirefox) {
+    // Firefox MV3 uses scripts array (Event Page) for maximum stability
+    manifest.background = {
+      scripts: ['background.js'],
+      type: 'module'
+    };
+    // Firefox AMO requires browser_specific_settings with unique gecko ID
+    manifest.browser_specific_settings = {
+      gecko: {
+        id: 'devfill@sajusun.github.io',
+        strict_min_version: '109.0'
+      }
+    };
+  } else {
+    // Edge & Chrome use service_worker
+    manifest.background = {
+      service_worker: 'background.js',
+      type: 'module'
+    };
+    // Clean up browser_specific_settings for Edge/Chrome if present
+    delete manifest.browser_specific_settings;
+  }
+
+  fs.writeFileSync(resolve(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+
+  // Step 6: Copy Icons
   const iconsSrc = resolve(rootDir, 'public/icons');
-  const iconsDist = resolve(distDir, 'icons');
+  const iconsDist = resolve(outDir, 'icons');
   if (fs.existsSync(iconsSrc)) {
     fs.cpSync(iconsSrc, iconsDist, { recursive: true });
   }
 
-  console.log('✅ Extension build completed successfully! Unpacked directory is ready in ./dist');
+  console.log(`✅ Build completed! Load unpacked from ./${outDirName}`);
 }
 
-runBuild().catch((err) => {
+async function main() {
+  if (selectedTarget === 'all') {
+    await buildTarget('chrome');
+    await buildTarget('firefox');
+  } else if (selectedTarget === 'firefox') {
+    await buildTarget('firefox');
+  } else {
+    await buildTarget('chrome');
+  }
+}
+
+main().catch((err) => {
   console.error('❌ Build failed:', err);
   process.exit(1);
 });
