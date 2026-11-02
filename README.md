@@ -66,7 +66,7 @@ You can build and run locally in 30 seconds:
 
 1. Clone or download this repository:
    ```bash
-   git clone https://github.com/sajusun/Auto-Filler-Developer-Tools.git
+   git clone https://github.com/sajusun/devfill.git
    cd devfill
    ```
 
