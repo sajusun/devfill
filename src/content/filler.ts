@@ -98,7 +98,12 @@ export class DevFillDomEngine {
       if (!this.isFillable(el)) continue;
 
       if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
-        el.checked = false;
+        const checkedSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'checked')?.set;
+        if (checkedSetter) {
+          checkedSetter.call(el, false);
+        } else {
+          el.checked = false;
+        }
         this.dispatchEvents(el);
         clearedCount++;
       } else if (el instanceof HTMLSelectElement) {
@@ -172,7 +177,12 @@ export class DevFillDomEngine {
     if (options.length === 0) return false;
 
     const chosen = options[Math.floor(Math.random() * options.length)];
-    select.value = chosen.value;
+    const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')?.set;
+    if (valueSetter) {
+      valueSetter.call(select, chosen.value);
+    } else {
+      select.value = chosen.value;
+    }
     this.dispatchEvents(select);
 
     if (this.settings.highlightFields) {
@@ -182,7 +192,12 @@ export class DevFillDomEngine {
   }
 
   private fillCheckbox(checkbox: HTMLInputElement): boolean {
-    checkbox.checked = true;
+    const checkedSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'checked')?.set;
+    if (checkedSetter) {
+      checkedSetter.call(checkbox, true);
+    } else {
+      checkbox.checked = true;
+    }
     this.dispatchEvents(checkbox);
     if (this.settings.highlightFields) {
       this.highlightElement(checkbox);
@@ -197,7 +212,12 @@ export class DevFillDomEngine {
 
     if (radios.length > 0) {
       const chosen = radios[Math.floor(Math.random() * radios.length)];
-      chosen.checked = true;
+      const checkedSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'checked')?.set;
+      if (checkedSetter) {
+        checkedSetter.call(chosen, true);
+      } else {
+        chosen.checked = true;
+      }
       this.dispatchEvents(chosen);
       if (this.settings.highlightFields) {
         this.highlightElement(chosen);

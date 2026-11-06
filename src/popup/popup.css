@@ -342,30 +342,18 @@ input:checked + .toggle-slider:before {
   user-select: none;
 }
 
-.rate-link {
-  font-size: 10px;
-  color: #fbbf24;
+.docs-link {
+  font-size: 11px;
+  color: var(--accent-emerald);
   text-decoration: none;
   font-weight: 600;
-  transition: opacity 0.15s ease, color 0.15s ease;
+  transition: color 0.15s ease, opacity 0.15s ease;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
 }
 
-.rate-link:hover {
-  color: #f59e0b;
-  text-decoration: underline;
-}
-
-.github-link {
-  font-size: 10px;
-  color: var(--accent-indigo);
-  text-decoration: none;
-  font-weight: 600;
-  transition: color 0.15s ease;
-}
-
-.github-link:hover {
-  color: #818cf8;
+.docs-link:hover {
+  color: #34d399;
   text-decoration: underline;
 }
